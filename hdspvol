@@ -1,0 +1,117 @@
+#!/bin/bash
+
+#
+# hdspvol
+#
+# (c) 2015-2016 Carlo Capocasa. MIT License.
+#
+
+SELF=`basename $0`
+
+OUTFILE="$HOME/.config/$SELF/out"
+MUTEFILE="$HOME/.config/$SELF/mute"
+RC="$HOME/.config/$SELF/rc"
+
+MAX=65535
+MIN=0
+STEP=2048
+SMALLSTEP=256
+TINYSTEP=32
+
+IN_LEFT=26
+IN_RIGHT=27
+OUT_LEFT=0
+OUT_RIGHT=1
+
+if [ -f "$RC" ]; then
+  . "$RC"
+fi
+
+function init {
+  mkdir -p `dirname $OUTFILE`
+  mkdir -p `dirname $MUTEFILE`
+  if [ ! -f $OUTFILE ]; then
+    VOLUME=0
+    echo $VOLUME > "$OUTFILE"
+  fi
+  VOLUME=`cat $OUTFILE`
+}
+
+function save {
+  if [ ! -e "FILE" ]; then
+    mkdir -p `dirname $OUTFILE`
+  fi
+  echo $VOLUME > $OUTFILE
+}
+
+function set {
+  amixer -D hw:DSP cset numid=5 $IN_LEFT,$OUT_LEFT,$1 > /dev/null
+  amixer -D hw:DSP cset numid=5 $IN_RIGHT,$OUT_RIGHT,$1 > /dev/null
+}
+
+
+case $1 in
+  inc)
+    init
+    rm -f $MUTEFILE
+    #VOLUME=`echo $VOLUME $STEP | awk '{print int($1*(1+$2))}'`
+    if [ "$VOLUME" -lt "$STEP" ]; then
+      STEP=$SMALLSTEP
+    fi
+    if [ "$VOLUME" -lt "$SMALLSTEP" ]; then
+      STEP=$TINYSTEP
+    fi
+    let VOLUME+=$STEP
+    if [ $VOLUME -gt $MAX ]; then
+      VOLUME=$MAX
+    fi
+    set $VOLUME
+    save
+    ;;
+  dec)
+    init
+    rm -f $MUTEFILE
+    #VOLUME=`echo $VOLUME $STEP | awk '{print int($1*(1-$2))}'`
+    if [ "$VOLUME" -le "$STEP" ]; then
+      STEP=$SMALLSTEP
+    fi
+    if [ "$VOLUME" -le "$SMALLSTEP" ]; then
+      STEP=$TINYSTEP
+    fi
+    let VOLUME-=$STEP
+    if [ $VOLUME -lt $MIN ]; then
+      VOLUME=$MIN
+    fi
+    set $VOLUME
+    save
+    ;;
+  load)
+    init
+    set $VOLUME
+    ;;
+  show)
+    init
+    echo -n $VOLUME
+    if [ -e $MUTEFILE ]; then
+      echo -n " muted"
+    fi
+    echo
+    ;;
+  mute)
+    init
+    if [ -e $MUTEFILE ]; then
+      set $VOLUME
+      rm $MUTEFILE 
+    else
+      set 0
+      touch $MUTEFILE
+    fi
+    ;;
+  *)
+    echo "Usage: `basename $0` [inc|dec|load|mute|show]"
+
+    exit 255
+    ;;
+esac
+
+
